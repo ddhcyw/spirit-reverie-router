@@ -60,6 +60,7 @@
                 // 獲取LINE Profile
                 const profile = await liff.getProfile();
                 const uid = profile.userId;
+                const displayName = profile.displayName; // 【新增】取得LINE暱稱
 
                 // 解析網址帶入的展場追蹤參數 (QR Code帶入)
                 const urlParams = new URLSearchParams(window.location.search);
@@ -89,7 +90,7 @@
                 }
 
                 // 拼接Hidden Fields參數並跳轉至Tally
-                const finalRedirectUrl = `${targetTallyUrl}?uid=${encodeURIComponent(uid)}&source=${encodeURIComponent(source)}&venue=${encodeURIComponent(venue)}&zone=${encodeURIComponent(zone)}&campaign=${encodeURIComponent(campaign)}`;
+                const finalRedirectUrl = `${targetTallyUrl}?uid=${encodeURIComponent(uid)}&displayName=${encodeURIComponent(displayName)}&source=${encodeURIComponent(source)}&venue=${encodeURIComponent(venue)}&zone=${encodeURIComponent(zone)}&campaign=${encodeURIComponent(campaign)}`;
 
                 window.location.href = finalRedirectUrl;
 
