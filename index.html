@@ -46,6 +46,20 @@
             b3: "https://tally.so/r/lbzQpV"
         };
 
+        // 對照 E7：如果URL沒帶明確的source（例如從物理場地QR掃進來的source=venue_xxx），
+        // 用這裡的偵測結果當預設值，判斷是FB/IG in-app browser還是一般相機掃碼
+        function detectSocialSource() {
+            const ua = navigator.userAgent || '';
+            const ref = document.referrer || '';
+
+            if (ua.includes('Line')) return 'line_share';
+            if (ref.includes('facebook.com') || ua.includes('FBAN') || ua.includes('FBAV')) {
+                return 'image_qr_fb';
+            }
+            if (ua.includes('Instagram')) return 'image_qr_ig';
+            return null; // 沒有明顯特徵，交給後面的預設值('direct'或既有source參數)處理
+        }
+
         async function initLIFF() {
             try {
                 // 填入在LINE Login Channel拿到的LIFF ID
@@ -60,37 +74,46 @@
                 // 獲取LINE Profile
                 const profile = await liff.getProfile();
                 const uid = profile.userId;
-                const displayName = profile.displayName; // 【新增】取得LINE暱稱
+                const displayName = profile.displayName;
 
                 // 解析網址帶入的展場追蹤參數 (QR Code帶入)
                 const urlParams = new URLSearchParams(window.location.search);
-                const source = urlParams.get('source') || 'direct';
                 const venue = urlParams.get('venue') || 'none';
                 const zone = urlParams.get('zone') || 'none';
                 const campaign = urlParams.get('campaign') || 'none';
 
+                // 【新增】接收分享機制帶來的參數（E5/E6/E7）
+                // ref：分享者的UID後6碼，用來記錄「這位新用戶是誰邀請來的」
+                const referrerRef = urlParams.get('ref') || 'none';
+                // source：如果分享圖片/連結那邊已經判斷出來源（image_qr_fb等），直接沿用；
+                // 沒有的話，這裡自己偵測一次；再沒有，才落回原本QR Code系統帶的source或direct
+                const explicitSource = urlParams.get('source');
+                const detectedSource = detectSocialSource();
+                const source = explicitSource || detectedSource || urlParams.get('source') || 'direct';
+
                 let targetTallyUrl = TALLY_URLS.base; // 預設走原始版
-                
-                const MAKE_CHECK_URL = "https://hook.eu1.make.com/41ma4yejbpaw60hyahporgyl0ufa3uxr"; 
-                
+
+                const MAKE_CHECK_URL = "https://hook.eu1.make.com/41ma4yejbpaw60hyahporgyl0ufa3uxr";
+
                 try {
                     const response = await fetch(`${MAKE_CHECK_URL}?uid=${uid}`);
                     const data = await response.json();
-                    
+
                     if (data && data.surveyCount !== undefined) {
                         const surveyCount = data.surveyCount;
-                        
-                        // 根據填答次數切換路由
-                        if (surveyCount === 1) targetTallyUrl = TALLY_URLS.b1;
-                        else if (surveyCount === 2) targetTallyUrl = TALLY_URLS.b2;
-                        else if (surveyCount >= 3) targetTallyUrl = TALLY_URLS.b3;
+
+                        if (surveyCount === 0) targetTallyUrl = TALLY_URLS.b1;
+                        else if (surveyCount === 1) targetTallyUrl = TALLY_URLS.b2;
+                        else if (surveyCount >= 2) targetTallyUrl = TALLY_URLS.b3;
                     }
                 } catch (err) {
                     console.error("查號台連線失敗，預設導向原始版測驗", err);
                 }
 
                 // 拼接Hidden Fields參數並跳轉至Tally
-                const finalRedirectUrl = `${targetTallyUrl}?uid=${encodeURIComponent(uid)}&displayName=${encodeURIComponent(displayName)}&source=${encodeURIComponent(source)}&venue=${encodeURIComponent(venue)}&zone=${encodeURIComponent(zone)}&campaign=${encodeURIComponent(campaign)}`;
+                // 【新增】referrerRef 需要在Tally後台也建立對應的隱藏欄位(referrer_ref)，
+                // 之後Make.com建檔時寫入 Customer Profile 的 referrer_uid 欄位（做完整匹配比對）
+                const finalRedirectUrl = `${targetTallyUrl}?uid=${encodeURIComponent(uid)}&displayName=${encodeURIComponent(displayName)}&source=${encodeURIComponent(source)}&venue=${encodeURIComponent(venue)}&zone=${encodeURIComponent(zone)}&campaign=${encodeURIComponent(campaign)}&referrerRef=${encodeURIComponent(referrerRef)}`;
 
                 window.location.href = finalRedirectUrl;
 
