@@ -102,9 +102,9 @@
                     if (data && data.surveyCount !== undefined) {
                         const surveyCount = data.surveyCount;
 
-                        if (surveyCount === 0) targetTallyUrl = TALLY_URLS.b1;
-                        else if (surveyCount === 1) targetTallyUrl = TALLY_URLS.b2;
-                        else if (surveyCount >= 2) targetTallyUrl = TALLY_URLS.b3;
+                        if (surveyCount === 1) targetTallyUrl = TALLY_URLS.b1;
+                        else if (surveyCount === 2) targetTallyUrl = TALLY_URLS.b2;
+                        else if (surveyCount >= 3) targetTallyUrl = TALLY_URLS.b3;
                     }
                 } catch (err) {
                     console.error("查號台連線失敗，預設導向原始版測驗", err);
