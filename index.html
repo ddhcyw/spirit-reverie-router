@@ -46,6 +46,9 @@
             b3: "https://tally.so/r/lbzQpV"
         };
 
+        // 【新增】記錄「開始測驗」這個動作的Webhook，給測驗完成率計算用
+        const SURVEY_START_WEBHOOK_URL = "https://hook.eu1.make.com/你的survey-start-webhook";
+
         // 對照 E7：如果URL沒帶明確的source（例如從物理場地QR掃進來的source=venue_xxx），
         // 用這裡的偵測結果當預設值，判斷是FB/IG in-app browser還是一般相機掃碼
         function detectSocialSource() {
@@ -58,6 +61,19 @@
             }
             if (ua.includes('Instagram')) return 'image_qr_ig';
             return null; // 沒有明顯特徵，交給後面的預設值('direct'或既有source參數)處理
+        }
+
+        // 記錄開始測驗這件事，不等待結果、不阻塞跳轉流程
+        function recordSurveyStart(uid, source) {
+            try {
+                fetch(`${SURVEY_START_WEBHOOK_URL}?uid=${encodeURIComponent(uid)}&source=${encodeURIComponent(source)}`, {
+                    method: 'GET'
+                }).catch((err) => {
+                    console.error('記錄開始測驗失敗（不影響測驗流程）', err);
+                });
+            } catch (err) {
+                console.error('記錄開始測驗失敗（不影響測驗流程）', err);
+            }
         }
 
         async function initLIFF() {
@@ -82,14 +98,14 @@
                 const zone = urlParams.get('zone') || 'none';
                 const campaign = urlParams.get('campaign') || 'none';
 
-                // 【新增】接收分享機制帶來的參數（E5/E6/E7）
-                // ref：分享者的UID後6碼，用來記錄「這位新用戶是誰邀請來的」
+                // 接收分享機制帶來的參數（E5/E6/E7）
                 const referrerRef = urlParams.get('ref') || 'none';
-                // source：如果分享圖片/連結那邊已經判斷出來源（image_qr_fb等），直接沿用；
-                // 沒有的話，這裡自己偵測一次；再沒有，才落回原本QR Code系統帶的source或direct
                 const explicitSource = urlParams.get('source');
                 const detectedSource = detectSocialSource();
                 const source = explicitSource || detectedSource || urlParams.get('source') || 'direct';
+
+                // 【新增】在跳轉去Tally之前，先發送「開始測驗」的紀錄（不等待，不阻塞）
+                recordSurveyStart(uid, source);
 
                 let targetTallyUrl = TALLY_URLS.base; // 預設走原始版
 
@@ -111,8 +127,6 @@
                 }
 
                 // 拼接Hidden Fields參數並跳轉至Tally
-                // 【新增】referrerRef 需要在Tally後台也建立對應的隱藏欄位(referrer_ref)，
-                // 之後Make.com建檔時寫入 Customer Profile 的 referrer_uid 欄位（做完整匹配比對）
                 const finalRedirectUrl = `${targetTallyUrl}?uid=${encodeURIComponent(uid)}&displayName=${encodeURIComponent(displayName)}&source=${encodeURIComponent(source)}&venue=${encodeURIComponent(venue)}&zone=${encodeURIComponent(zone)}&campaign=${encodeURIComponent(campaign)}&referrerRef=${encodeURIComponent(referrerRef)}`;
 
                 window.location.href = finalRedirectUrl;
